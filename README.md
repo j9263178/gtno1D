@@ -2,9 +2,9 @@
 
 <!-- [![Build Status]()]() -->
 
-Graphical Tensor Network Operator (GTNO) is a variational ansatz for solving quantum spin systems. By representing the polynominal of local interaction terms with finite bond dimension tensor network operator, this ansatz shows promising results for representing the ground state of several spin-1/2 models with very few parameters, its ability to reflect the symmetry of the Hamitonian also paves the way for us to study the phase transition.
+Graphical Tensor Network Operator (GTNO) is a generic tensor network operator which combines the insight of Imaginary time evolution and variational optimization for studying the quantum many-body spin systems. The central idea of GTNO is to construct several operators generated from the Hamiltonian and lift the weight of different operators as the variational parameters, this ansantz results in promising ground states and symmetries of the local tensor characterizing the quantum phases.
 
-In this project, we performs optimization of the ansatz by energy minimization using automatic differentiation. We utilized [DominantSparseEigenAD](https://github.com/buwantaiji/DominantSparseEigenAD), which is an extension of PyTorch that handles reverse-mode automatic differentiation of dominant eigen-decomposition process. 
+In this repository we provide minimum example codes for the construction of GTNO for several models, we implement the `GMPOmodel()` class for applying GTNO to cutomize initial states and to variantionally obtain the ground states via automatic differentiation (AD). Several observable measuments for probing the quantum phase are also included.
 
 ## Installation
 
@@ -18,20 +18,21 @@ Then clone this repo directly and start with example codes.
 
 ## Examples
 
-We provides minimum example codes for reproducing some important results in the paper, the construction of GTNO, inital state and local hamitonian for different models are all includes in the code.
 
-- [Phase transition in the 1D traversed field ising model](example_TFIM.py). One interplation parameters is used as the order parameter to detect Ising symmetry breaking, by applying more GTNOs we can push the predicted criticle value to the exact one g = 1.
+- [Phase transition in the 1D traversed field ising model](example_TFIM.py). Using the virtual order parameters and entanglement order parameters, we probe the phase transition between the polarized and spontaneously symmetry-broken phases using GTNO.
 
-- [Phase transition in the 1D traversed field cluster model](example_TFCM.py). By evaluating the virtual order parameters, we showed that GTNO is able relfect the prejective representation of the SPT cluster phase. We also observed criticle behavior in the variational paramters.
+- [Phase transition in the 1D traversed field cluster model](example_TFCM.py). Using the virtual order parameters, we showed that GTNO is able relfect the prejective representation of the SPT cluster phase.
 
-- [Ground state energy of 1D Heisenberg Model](example_Heisenberg.py). Using the Heisenberg GTNO, we obtained satisfying result with very few parameters comparable to VUMPS or all parameters AD approach.
+- [Ground state energy of 1D Heisenberg Model](example_Heisenberg.py). Using the Heisenberg GTNO, we obtained satisfying result with very few parameters comparable to VUMPS.
 
 
 ## GMPOmodel
 
-We implement the class `GMPOmodel` which inherits from `torch.nn.module`, this object contains information and optimization process of our 1D GTNO optimization problem.
+We implement the class `GMPOmodel()` which inherits from `torch.nn.module`, this object contains information and optimization process of our 1D GTNO optimization problem.
 
 To initialize the instance we have to pass several functions for tensor construction and info about number of parameters.
+
+`GMPOmodel(localh, gmpo, A, numG, Aparas, Gparas)`
 
 **Arguments**:
 
@@ -52,6 +53,6 @@ Apart from methods in `torch.nn.module`, `GMPOmodel` have some methods which hel
 
 - **.getcsarray()**: Return a copy tensor `torch.Tensor` of the current paramters in the `GMPOmodel`.
 
-## Known issues
+<!-- ## Known issues
 
-    1. Depending on the initial guess, ArpackNoConvergence might appear during the optimization of Heisenberg GTNO.
+    1. Depending on the initial guess, ArpackNoConvergence might appear during the optimization of Heisenberg GTNO. -->

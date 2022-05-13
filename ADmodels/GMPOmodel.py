@@ -12,6 +12,7 @@ class GMPOmodel(torch.nn.Module):
         gmpo: Function that returns a GMPO (d, d, D, D) 
         A: Function that returns a state that GMPO will apply to (d) or (d, D, D)
         numG: # of times we apply GMPO   
+        
         Aparas: # of paras in A
         Gparas: # of paras in gmpo
     """
@@ -86,12 +87,12 @@ class GMPOmodel(torch.nn.Module):
 
     def evaluate_E(self):   
         """
-            Forward pass by explicitly constructing the transfer matrix "Gong" and evaluate energy.
+            Forward pass by explicitly constructing the transfer matrix "Tsf" and evaluate energy.
         """
         gmpoA = self.get_gmpoA()
         D = gmpoA.shape[1]
-        Gong = torch.einsum("kij,kmn->imjn", gmpoA, gmpoA).reshape(D**2, D**2)
-        eigval_max, leigvector_max, reigvector_max = self.dominant_eig(Gong, self.ncv)
+        Tsf = torch.einsum("kij,kmn->imjn", gmpoA, gmpoA).reshape(D**2, D**2)
+        eigval_max, leigvector_max, reigvector_max = self.dominant_eig(Tsf, self.ncv)
         
         assert 1e-4<torch.norm(leigvector_max)<1e10
         assert 1e-4<torch.norm(reigvector_max)<1e10
@@ -109,20 +110,20 @@ class GMPOmodel(torch.nn.Module):
         def fr(v):
             r = v.reshape(self.D, self.D)
             return np.einsum("kij,kmn,jn->im", A, A, r, optimize="greedy")
-        self.Gong = sparselinalg.LinearOperator((self.D**2, self.D**2), matvec=fr)
+        self.Tsf = sparselinalg.LinearOperator((self.D**2, self.D**2), matvec=fr)
         def fl(v):
             l = v.reshape(self.D, self.D)
             return np.einsum("kij,kmn,im->jn", A, A, l, optimize="greedy")
-        self.GongT = sparselinalg.LinearOperator((self.D**2, self.D**2), matvec=fl)
-        def Gongadjoint_to_Aadjoint(grad_Gong):
+        self.TsfT = sparselinalg.LinearOperator((self.D**2, self.D**2), matvec=fl)
+        def Tsfadjoint_to_Aadjoint(grad_Tsf):
             grad_A = np.zeros((self.d, self.D, self.D))
-            for u, v in grad_Gong:
+            for u, v in grad_Tsf:
                 umat, vmat = u.reshape(self.D, self.D), v.reshape(self.D, self.D)
                 grad_A = grad_A \
                     + np.einsum("im,jn,kmn->kij", umat, vmat, A, optimize="greedy") \
                     + np.einsum("mi,nj,kmn->kij", umat, vmat, A, optimize="greedy")
             return torch.from_numpy(grad_A)
-        self.Gongadjoint_to_Aadjoint = Gongadjoint_to_Aadjoint
+        self.Tsfadjoint_to_Aadjoint = Tsfadjoint_to_Aadjoint
 
     def _h_optcontraction(self, l, r, h):
         upperleft = torch.einsum("aik,im->amk", self.A_, l)
@@ -135,7 +136,7 @@ class GMPOmodel(torch.nn.Module):
 
     def evaluate_E_sparse(self):
         """
-            Forward pass by treating the transfer matrix "Gong" as a "sparse matrix"
+            Forward pass by treating the transfer matrix "Tsf" as a "sparse matrix"
         represented by scipy.sparse.linalg.LinearOperator. This way, various tensor
         contractions involved in the forward and backward pass can be significantly
         optimized and accelerated.
@@ -144,7 +145,7 @@ class GMPOmodel(torch.nn.Module):
         self.A_ = self.get_gmpoA()
         self._setsparsefunctions()
         
-        DSEADeig.setDominantSparseEig(self.Gong, self.GongT, self.Gongadjoint_to_Aadjoint)
+        DSEADeig.setDominantSparseEig(self.Tsf, self.TsfT, self.Tsfadjoint_to_Aadjoint)
         dominant_sparse_eig = DSEADeig.DominantSparseEig.apply 
         eigval_max, leigvector_max, reigvector_max = dominant_sparse_eig(self.A_, self.ncv)
 
@@ -154,17 +155,15 @@ class GMPOmodel(torch.nn.Module):
         leigvector_max = leigvector_max.reshape(self.D, self.D)
         reigvector_max = reigvector_max.reshape(self.D, self.D)
         E0 = self._h_optcontraction(leigvector_max, reigvector_max, self.h) / eigval_max**2
-        
-        # print(f"E0 = {E0.item()}, dE = {E0.item()-(1/4 - np.log(2))}")
-        
+    
         return E0
     
     @torch.no_grad()
     def evaluate_exp(self, O):
         gmpoA = self.get_gmpoA()
         D = gmpoA.shape[1]
-        Gong = torch.einsum("kij,kmn->imjn", gmpoA, gmpoA).reshape(D**2, D**2)
-        eigval_max, leigvector_max, reigvector_max = self.dominant_eig(Gong, self.ncv)
+        Tsf = torch.einsum("kij,kmn->imjn", gmpoA, gmpoA).reshape(D**2, D**2)
+        eigval_max, leigvector_max, reigvector_max = self.dominant_eig(Tsf, self.ncv)
         assert 1e-4<torch.norm(leigvector_max)<1e10
         assert 1e-4<torch.norm(reigvector_max)<1e10
         leigvector_max = leigvector_max.reshape(D, D)
@@ -172,17 +171,14 @@ class GMPOmodel(torch.nn.Module):
         E0 = torch.einsum("aik,bkj,abcd,cml,dln,im,jn", gmpoA, gmpoA, O,
                 gmpoA, gmpoA, leigvector_max, reigvector_max) / eigval_max**2
         return E0
-    
-    @torch.no_grad()
-    def get_xi(self):
-        gmpoA = self.get_gmpoA().clone()
-        D = gmpoA.shape[1]
-        Tsf = torch.einsum("kij,kmn->imjn", gmpoA, gmpoA).reshape(D**2, D**2).numpy()
-        w, v = sparselinalg.eigs(Tsf, k = 2)
-        xi = -1/np.log(np.abs(w[1]/w[0]))     
-        return xi
 
-    # @torch.no_grad()
-    # def get_schimits(self):
-    #     A = self.get_gmpoA().clone()
-    #     return schimits(A.permute(1,0,2).numpy())
+    @torch.no_grad()
+    def get_EOP(self, obs):
+        gmpoA = self.get_gmpoA().detach()
+        D = gmpoA.shape[1]
+        Tsf = torch.einsum("kij,kmn->imjn", gmpoA, gmpoA).reshape(D**2, D**2)
+        eigval_max, leigvector_max, reigvector_max = self.dominant_eig(Tsf, self.ncv)
+        assert 1e-4<torch.norm(leigvector_max)<1e10
+        assert 1e-4<torch.norm(reigvector_max)<1e10
+        res = torch.einsum("ij,i,j", obs, leigvector_max, reigvector_max)
+        return res

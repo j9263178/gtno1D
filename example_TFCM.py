@@ -1,13 +1,7 @@
-"""
-    Construction of GTNO, initial states A and local Hamitonian for studying the 1D traversed field cluster model,
-    followed by the energy optimization at different traversed field values g. We do it for numG = 1 and evaluate
-    the virtual order parameter and other observables.
-"""
-
 import numpy as np
-from scipy.integrate import quad
 from ADmodels.GMPOmodel import GMPOmodel
-from torch import optim, einsum, tensor, eye, ones, zeros, rand, randn, matmul, kron, float64, complex64, cos, sin, real, no_grad
+from torch import optim, tensor, eye, ones, zeros, rand, randn, matmul, kron, float64, complex64, cos, sin, real, no_grad, from_numpy, einsum
+from scipy.integrate import quad
 
 Id = eye(2, dtype=float64)
 Sx = zeros(2, 2, dtype=float64); Sx[0, 1] = Sx[1, 0] = 1
@@ -16,29 +10,36 @@ iSy = zeros(2, 2, dtype=float64); iSy[0, 1] = 1; iSy[1, 0] = -1
 Sz = zeros(2, 2, dtype=float64); Sz[0, 0] = 1; Sz[1, 1] = -1
 Sp = real(Sx + 1j*Sy); Sm = real(Sx - 1j*Sy)
 
+##  Helper functions
 def symmetrize(A, B):
     return (matmul(A, B) + matmul(B, A))/2
 
 def symmetrize2(A, B, C):
     return (matmul(A, symmetrize(B,C)) + matmul(B, symmetrize(A,C)) + matmul(C, symmetrize(A,B)))/3
 
-zxz = (einsum('ae,bf,cg,dh->abcdefgh',Sz,Sx,Sz,Id)+einsum('ae,bf,cg,dh->abcdefgh',Id,Sz,Sx,Sz))/2
-x = (0.25)*einsum('ae,bf,cg,dh->abcdefgh',Sx,Id,Id,Id)
-x += (0.25)*einsum('ae,bf,cg,dh->abcdefgh',Id,Sx,Id,Id)
-x += (0.25)*einsum('ae,bf,cg,dh->abcdefgh',Id,Id,Sx,Id)
-x += (0.25)*einsum('ae,bf,cg,dh->abcdefgh',Id,Id,Id,Sx)
-zxz = zxz.reshape(4,4,4,4)
-x = x.reshape(4,4,4,4)
-
 if __name__ == "__main__":
-    
+
+    ##  Construct the initial state |+...+> for TFIM.    
     def tfcm_AA(cs):
         d = 2
         A = zeros(d, dtype=float64)
         A[0] = A[1] = 1.
         AA = kron(A, A)
         return AA
-    
+
+    ##  Construct the local TFCM Hamiltonian for given parameter g. 
+    def tfcm_h(g):
+        zxz = 0.5*(einsum("ae,bf,cg,dh->abcdefgh",Sz,Sx,Sz,Id)+einsum("ae,bf,cg,dh->abcdefgh",Id,Sz,Sx,Sz))
+        x = (0.25)*einsum("ae,bf,cg,dh->abcdefgh",Sx,Id,Id,Id)
+        x += (0.25)*einsum("ae,bf,cg,dh->abcdefgh",Id,Sx,Id,Id)
+        x += (0.25)*einsum("ae,bf,cg,dh->abcdefgh",Id,Id,Sx,Id)
+        x += (0.25)*einsum("ae,bf,cg,dh->abcdefgh",Id,Id,Id,Sx)
+        zxz = zxz.reshape(4,4,4,4)
+        x = x.reshape(4,4,4,4)    
+        h = (-g*x-zxz)
+        return h
+        
+    ##  Construct gmpo for TFCM.
     def tfcm_G(cs):  
         D = 4; d = 4
         G = zeros(d, d, D, D, dtype=float64)
@@ -49,7 +50,6 @@ if __name__ == "__main__":
         m = 0
         for a in range(len(idxs)):
             for b in range(a,len(idxs)):
-                # print(f"a = {a}, b = {b}")
                 if a == 0 and b == 0:
                     G[:, :, 0, 0] = kron(Id, Id) 
                 else:
@@ -61,12 +61,12 @@ if __name__ == "__main__":
                             G[:, :, j, i] = (cs[m])*optmp
                     m += 1
         # print(f"num of cs = {m}")
-        # exit()
         for a in range(len(idxs)):
             for b in range(a,len(idxs)):
                 if a == 0 and b == 0:
-                    G[:, :, 0, 0] += cs[m]*(onsites[0] + onsites[1]) + cs[m+1]*onsites[2]
-                    m +=2
+                    # G[:, :, 0, 0] += cs[m]*(onsites[0] + onsites[1]) + cs[m+1]*onsites[2]
+                    G[:, :, 0, 0] += cs[m]*(onsites[0] + onsites[1] + onsites[2])
+                    m += 1
                 else:               
                     for i in idxs[a]:
                         for j in idxs[b]:
@@ -77,85 +77,103 @@ if __name__ == "__main__":
                                 G[:, :, j, i] += cs[m]*onsitetmp
                     m += 1
         # print(f"num of cs = {m}")
-        # exit()
         return G
-
-    def tfcm_h(g):
-        h = (-g*x-zxz)
-        return h
     
+    ##  Closure function for optimizer 
     def closure():
         # E0 = model.evaluate_E()
         E0 = model.evaluate_E_sparse() # for large D one should use sparse forward.
         optimizer.zero_grad()
         E0.backward()
         return E0
-
-    def get_En_exact(hx):
+    
+    ##  Get the exact TFCM ground state energy for a given g   
+    def get_E0_exact(hx):
         def integrand(k):
             epsilon = np.cos(2*k) - hx; 
             delta = np.sin(2*k)
             return np.sqrt(epsilon**2 + delta**2)
-        En = -quad(lambda k: integrand(k), 0, np.pi)[0]/np.pi
-        return En
+        E0 = -quad(lambda k: integrand(k), 0, np.pi)[0]/np.pi
+        return E0
     
-    numG = 1; numc_G = 12; numA = 0
-    lencG = numG*numc_G
-    model = GMPOmodel(localh = tfcm_h, gmpo = tfcm_G, A = tfcm_AA, numG = numG, Aparas = numA, Gparas = numc_G)
-    
+    numG = 1; numc_G = 11; numA = 0
+    lenc = numG*numc_G + numA
+
     epochnum = 10
-    gs1 = np.linspace(0, 0.76, 31, endpoint=False)
-    gs2 = np.linspace(0.76, 0.93, 20, endpoint=False)
-    gs3 = np.linspace(0.93, 2, 31)
-    gs = np.concatenate([gs1, np.concatenate([gs2, gs3])])
-
-    cinit = tensor(5*[1]+(numc_G-5)*[0],dtype=float64)
+    cinit = rand(lenc,dtype=float64)
+    
+    ## for numG = 1 we start with h_x = 0, for higher numG we only scale around the critical point   
+    if numG == 1:
+        gs = np.concatenate([np.linspace(0, 0.76, 31, endpoint=False), np.concatenate([np.linspace(0.76, 0.93, 30, endpoint=False), np.linspace(0.93, 2, 31)])])
+        cinit = tensor(5*[1]+6*[0],dtype=float64)
+    elif numG == 2:
+        gs = np.concatenate([np.linspace(0.8, 0.93, 5, endpoint=False), np.concatenate([np.linspace(0.93, 1.00, 30, endpoint=False), np.linspace(1.00, 1.05, 5)])])
+    elif numG == 3:
+        gs = np.concatenate([np.linspace(0.8, 0.96, 5, endpoint=False), np.concatenate([np.linspace(0.96, 1.00, 30, endpoint=False), np.linspace(1.00, 1.05, 5)])])
+      
+    ##  Initialize the GMPOmodel   
+    model = GMPOmodel(localh = tfcm_h, gmpo = tfcm_G, A = tfcm_AA, numG = numG, Aparas = numA, Gparas = numc_G) 
     model.setcs(cs = cinit)
-    model.setreqgrad(reqgrad = ones(numA+lencG))
+    model.setreqgrad(reqgrad = lenc*[1])
     
-    E0s, dE_Es, cs, zxzs, xs, vops = [], [], [], [], [], []
-    
-    for i in range(gs.size):
-        model.g = gs[i]
-        optimizer = optim.LBFGS(model.parameters(), max_iter=50, tolerance_grad = 0, tolerance_change = 0, line_search_fn="strong_wolfe")
+    ##  Initialize the optimizer  
+    optimizer = optim.LBFGS(model.parameters(), max_iter=40, tolerance_grad = 0, tolerance_change = 0, line_search_fn="strong_wolfe")
 
-        En_exact = get_En_exact(model.g)
+    ##  File reading and writing labels
+    obsfn = f"datas/tfcm_numG{numG}_obs.txt"
+    csfn = f"datas/tfcm_numG{numG}_cs.txt"
+        
+    obsf = open(obsfn, "a")
+    obsf.write("# hx E0 deltaE VOP\n")
+    obsf.close()
+    
+    csf = open(csfn, "a")
+    first = "# hx "
+    for i in range(1, lenc):
+        first += (" c" + str(i) )
+    csf.write(first+"\n")
+    csf.close()
+
+    ## optimize GTNO and measure observables for each h_x
+    for g in gs:
+        print(f"h_x = {g}")
+        model.g = g
+        E0_exact = get_E0_exact(model.g)
         for epoch in range(epochnum):
             E0 = optimizer.step(closure)
-        print("-"*50)
-        dE_E = (E0.item()-En_exact)/abs(En_exact)
-        print("g = ", model.g," dE/E = ", dE_E)
-        print(model.getcsarray())
-        
+            print(f"deltaE = {(E0.item()-E0_exact)/abs(E0_exact)}")
+
         with no_grad():
             
-            E0s.append(E0.item()); dE_Es.append(dE_E)
-            cs.append(model.getcsarray().numpy())
-            zxzs.append(model.evaluate_exp(zxz).item())
-            xs.append(model.evaluate_exp(x).item())
+            deltaE = (E0.item()-E0_exact)/abs(E0_exact)
             
-            # Below evaluates VOPs
-            
+            ## evaluate VOP
             A = model.get_gmpoA()
-            
             u = kron(Sx,Id); V = kron(Sx,Sz)
             for _ in range(numG-1):
                 V = kron(V,kron(Id,Sz))
-            uA = einsum("ai,ibc->abc",u,A)
-            VuAV = einsum("bj,ajk,kc->abc",V.T,uA,V)             
+            uA = einsum("ai,jbc->abc",u, A)
+            VuAV = einsum("bi,aij,jc->abc", V.T, uA, V) 
             print(f"norm(A-VuAV)/A.norm() = {(A-VuAV).norm()/A.norm()}")
-            
             u = kron(Id,Sx); V = kron(Id,Sx)
             for _ in range(numG-1):
                 V = kron(V,kron(Sz,Id))
-            uA = einsum("ai,ibc->abc",u,A)
-            VuAV = einsum("bj,ajk,kc->abc",V.T,uA,V)  
-            print(f"norm(A-VuAV)/A.norm() = {(A-VuAV).norm()/A.norm()}")  
+            uA = einsum("ai,jbc->abc",u, A)
+            VuAV = einsum("bi,aij,jc->abc", V.T, uA, V)  
+            print(f"norm(A-VuAV)/A.norm() = {(A-VuAV).norm()/A.norm()}")
+            VOP = (A-VuAV).norm()/A.norm()
             
-            vops.append((A-VuAV).norm()/A.norm().item())
-
-    np.savez(f"datas/tfcm_datas_{numG}.npz", gs = gs, E0s = np.asarray(E0s),dE_Es = np.asarray(dE_Es), zxzs = np.asarray(zxzs), xs= np.asarray(xs) , vops = np.asarray(vops))
-    np.savez(f"datas/tfcm_cs_{numG}.npz", gs = gs, cs = np.asarray(cs))
-    
+            ## write to observable file
+            tmp = np.asarray([model.g, E0.item(), deltaE, VOP])
+            with open(obsfn, "a") as f:
+                np.savetxt(f, tmp.reshape(1, tmp.shape[0]))
+            f.close() 
+            print(f"h_x = {tmp[0]}, deltaE = {tmp[2]}, VOP = {tmp[3]}")
+            
+            ## write to cs file                         
+            tmp = np.asarray(model.getcsarray()); tmp = np.insert(tmp, 0, model.g)
+            with open(csfn, "a") as f:
+                np.savetxt(f, tmp.reshape(1, tmp.shape[0]))
+            f.close()
 
 
