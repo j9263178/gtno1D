@@ -1,8 +1,8 @@
-# Graphical Tensor Network Operator (GTNO)
+# Generic Tensor Network Operator (GTNO)
 
 <!-- [![Build Status]()]() -->
 
-Graphical Tensor Network Operator (GTNO) is a generic tensor network operator which combines the insight of Imaginary time evolution and variational optimization for studying the quantum many-body spin systems. The central idea of GTNO is to construct several operators generated from the Hamiltonian and lift the weight of different operators as the variational parameters, this ansatz results in promising ground states and symmetries of the local tensor characterizing the quantum phases.
+Generic Tensor Network Operator (GTNO) combines the insight of imaginary time evolution and variational optimization for studying the quantum many-body spin systems. The central idea of GTNO is to construct several operators generated from the Hamiltonian and lift the weight of different operators as the variational parameters, this ansatz results in promising ground states and symmetries of the local tensor characterizing the quantum phases.
 
 In this repository we provide minimum example codes for the construction of GTNO for several models, we implement the `GMPOmodel()` class for applying GTNO to cutomized initial states and to variantionally obtain the ground states via automatic differentiation (AD). Several observable measuments for probing the quantum phase are also included.
 
