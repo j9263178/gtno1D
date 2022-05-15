@@ -26,7 +26,7 @@ Then clone this repo directly and start with example codes.
 
 - [Phase transition in the 1D traversed field cluster model](example_TFCM.py). Using the virtual order parameters, we showed that GTNO is able relfect the prejective representation of the SPT cluster phase.
 
-<img src="https://i.imgur.com/5yOSTWQ.png" alt="pic2" width = "800"/>
+<img src="https://i.imgur.com/7RlEGBw.png" alt="pic2" width = "800"/>
 
 - [Ground state energy of 1D Heisenberg Model](example_Heisenberg.py). Using the Heisenberg GTNO, we obtained satisfying result with very few parameters comparable to VUMPS.
 
