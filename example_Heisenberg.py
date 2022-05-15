@@ -5,7 +5,7 @@
 
 import numpy as np
 from ADmodels.GMPOmodel import GMPOmodel
-from torch import optim, einsum, tensor, eye, ones, zeros, rand, randn, matmul, kron, float64, complex64, cos, sin, real
+from torch import optim, einsum, tensor, eye, ones, zeros, rand, randn, matmul, kron, float64, complex64, cos, sin, real, no_grad
 
 Id = eye(2, dtype=float64)
 Sx = zeros(2, 2, dtype=float64); Sx[0, 1] = Sx[1, 0] = 1
@@ -23,7 +23,7 @@ def symmetrize2(A, B, C):
 
 if __name__ == "__main__":
     
-    ##  Construct the initial state (singlets).   
+    ##  Construct the initial state (singlets), two sites translational invariant.  
     def singlet_AA(cs):
         D = 2; d = 4
         o, x = zeros(2, dtype=float64), zeros(2, dtype=float64)
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         AA = ox-xo
         return AA
 
-    ##  Construct the initial state (MGS).     
+    ##  Construct the initial state (MGS), one site translational invariant but we group two sites together. 
     def majumdar_ghosh_state(cs):
         o, x = zeros(2, dtype=float64), zeros(2, dtype=float64)
         o[0] = 1; x[1] = 1
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     numG = 2; numc_G = 2
     lenc = numG*numc_G
     
-    ##  Initialize the GMPOmodel 
+    ##  Initialize the GMPOmodel, using singlet initial state
     model = GMPOmodel(localh = heisenberg_h_twosites, gmpo = heisenberg_G_twosites, A = singlet_AA, numG = numG, Aparas = 0, Gparas = 2)
     model.setcs(cs = rand(lenc, dtype=float64))
     model.setreqgrad(reqgrad = ones(lenc))
@@ -120,8 +120,29 @@ if __name__ == "__main__":
         if E0.item()<bestE:
             bestE = E0.item() 
             bestcs = model.getcsarray()
-            
-    print("-"*30)
-    print(f"Best E = {bestE}, dE/E = {(bestE-E0_exact)/abs(E0_exact)}")
-    print(bestcs)
-    print("-"*30)
+
+    ## Initialize another GMPOmodel, this time we use MG state as initial state
+    model_MG = GMPOmodel(localh = heisenberg_h_twosites, gmpo = heisenberg_G_twosites, A = majumdar_ghosh_state, numG = numG, Aparas = 0, Gparas = 2)
+    
+    ## Plug in parameters optimized with singlet state before.
+    model_MG.setcs(cs = bestcs)
+    
+    E_singlet = bestE
+    E_MG = model_MG.evaluate_E_sparse().item()
+    
+    ## Compare energy between MG initial state and singlet initial state with same parameters.
+    print(f"Best E using singlet state= {E_singlet}, deltaE = {(E_singlet-E0_exact)/abs(E0_exact)}")
+    print(f"Best E using MG state= {E_MG}, deltaE = {(E_MG-E0_exact)/abs(E0_exact)}")
+
+    from scipy.sparse.linalg import eigs
+    
+    ## Calculate correlation length
+    with no_grad():
+        A = model_MG.get_gmpoA().detach()
+        T = einsum("iac,ibd->abcd",A,A).reshape((16**numG)*(3**2), (16**numG)*(3**2))
+        # T = ncon([A,A],[[1,-1,-3],[1,-2,-4]]).reshape((16**numG)*(3**2), (16**numG)*(3**2))
+        T = T.detach().numpy()
+        vals, vecs = eigs(T, k=3)
+        vals = np.sort(np.abs(vals))[::-1]
+        print(vals)
+        print(-1/np.log(vals[2]/vals[0]))
