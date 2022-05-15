@@ -106,11 +106,9 @@ if __name__ == "__main__":
     if numG == 1:
         gs = np.concatenate([np.linspace(0, 0.76, 31, endpoint=False), np.concatenate([np.linspace(0.76, 0.93, 30, endpoint=False), np.linspace(0.93, 2, 31)])])
         cinit = tensor(5*[1]+6*[0],dtype=float64)
-    elif numG == 2:
+    if numG == 2:
         gs = np.concatenate([np.linspace(0.8, 0.93, 5, endpoint=False), np.concatenate([np.linspace(0.93, 1.00, 30, endpoint=False), np.linspace(1.00, 1.05, 5)])])
-    elif numG == 3:
-        gs = np.concatenate([np.linspace(0.8, 0.96, 5, endpoint=False), np.concatenate([np.linspace(0.96, 1.00, 30, endpoint=False), np.linspace(1.00, 1.05, 5)])])
-      
+
     ##  Initialize the GMPOmodel   
     model = GMPOmodel(localh = tfcm_h, gmpo = tfcm_G, A = tfcm_AA, numG = numG, Aparas = numA, Gparas = numc_G) 
     model.setcs(cs = cinit)
@@ -128,7 +126,7 @@ if __name__ == "__main__":
     obsf.close()
     
     csf = open(csfn, "a")
-    first = "# hx "
+    first = "# hx"
     for i in range(1, lenc):
         first += (" c" + str(i) )
     csf.write(first+"\n")
@@ -152,13 +150,13 @@ if __name__ == "__main__":
             u = kron(Sx,Id); V = kron(Sx,Sz)
             for _ in range(numG-1):
                 V = kron(V,kron(Id,Sz))
-            uA = einsum("ai,jbc->abc",u, A)
+            uA = einsum("ai,ibc->abc",u, A)
             VuAV = einsum("bi,aij,jc->abc", V.T, uA, V) 
             print(f"norm(A-VuAV)/A.norm() = {(A-VuAV).norm()/A.norm()}")
             u = kron(Id,Sx); V = kron(Id,Sx)
             for _ in range(numG-1):
                 V = kron(V,kron(Sz,Id))
-            uA = einsum("ai,jbc->abc",u, A)
+            uA = einsum("ai,ibc->abc",u, A)
             VuAV = einsum("bi,aij,jc->abc", V.T, uA, V)  
             print(f"norm(A-VuAV)/A.norm() = {(A-VuAV).norm()/A.norm()}")
             VOP = (A-VuAV).norm()/A.norm()

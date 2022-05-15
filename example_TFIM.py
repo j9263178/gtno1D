@@ -70,18 +70,11 @@ if __name__ == "__main__":
     ## for numG = 1 we start with h_x = 0, for higher numG we only scale around the critical point
     if numG == 1:
         cinit = tensor([1, 1, 0, 0], dtype=float64)
-        gs = np.concatenate([np.linspace(0.0, 0.70, 13), np.concatenate([np.linspace(0.70, 1.00, 31), np.linspace(1.00, 2.00, 13)])])
+        gs = np.concatenate([np.linspace(0.0, 0.80, 17), np.concatenate([np.linspace(0.80, 0.85, 31), np.linspace(0.85, 2.00, 17)])])
 
     if numG == 2:
         gs = np.concatenate([np.linspace(0.75, 0.93, 8), np.concatenate([np.linspace(0.93, 1.00, 31), np.linspace(1.00, 1.20, 13)])])
         
-    if numG == 3:
-        gs = np.concatenate([np.linspace(0.75, 0.97, 13), np.concatenate([np.linspace(0.97, 1.01, 31), np.linspace(1.01, 1.20, 13)])])
-
-    if numG == 4:
-        gs = np.concatenate([np.linspace(0.75, 0.98, 13), np.concatenate([np.linspace(0.98, 1.025, 31), np.linspace(1.025, 1.20, 13)])])
-    
-
     ##  Initialize the GMPOmodel  
     model = GMPOmodel(localh = tfim_h, gmpo = tfim_G, A = ising_A, numG = numG, Aparas = numA, Gparas = numc_G)        
     model.setcs(cs = cinit)
@@ -101,8 +94,8 @@ if __name__ == "__main__":
     obsf.close()
     
     csf = open(csfn, "a")
-    first = "# hx "
-    for i in range(1, lenc):
+    first = "# hx"
+    for i in range(1, lenc+1):
         first += (" c" + str(i) )
     csf.write(first+"\n")
     csf.close()
@@ -139,7 +132,7 @@ if __name__ == "__main__":
             EOP = model.get_EOP(ZI)
         
             ## evaluate VOP
-            uA = einsum("ai,jbc->abc",u, A)
+            uA = einsum("ai,ibc->abc",u, A)
             VuAV = einsum("bi,aij,jc->abc", V.T, uA, V)
             VOP = (A-VuAV).norm()/A.norm() 
             
