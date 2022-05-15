@@ -6,6 +6,8 @@ Generic Tensor Network Operator (GTNO) combines the insight of imaginary time ev
 
 In this repository we provide minimum example codes for the construction of GTNO for several 1D models, we implement the `GMPOmodel()` class for applying GTNO to cutomized initial states and to variantionally obtain the ground states via automatic differentiation (AD). Several observable measuments for probing the quantum phase are also included.
 
+Note that the example codes provided here do not guarantee to reproduce all the results on the paper, especially when higher numG (e.g. >2) is applied, one may observe the energy expectation value is trapped to local minima and unexpected behavior of observables might occurs, one should thus modify the codes and implement more complicated optimization procedures (e.g. start from the optimal parameters of smaller numG and freeze some parameters during the optimization).
+
 ## Installation
 
 Make sure you have installed:
