@@ -21,7 +21,12 @@ Then clone this repo directly and start with example codes.
 
 - [Phase transition in the 1D traversed field ising model](example_TFIM.py). Using the virtual order parameters and entanglement order parameters, we probe the phase transition between the polarized and spontaneously symmetry-broken phases using GTNO.
 
+<img src="https://i.imgur.com/P9jllmT.png" alt="pic1" width = "800"/>
+
+
 - [Phase transition in the 1D traversed field cluster model](example_TFCM.py). Using the virtual order parameters, we showed that GTNO is able relfect the prejective representation of the SPT cluster phase.
+
+<img src="https://i.imgur.com/5yOSTWQ.png" alt="pic2" width = "800"/>
 
 - [Ground state energy of 1D Heisenberg Model](example_Heisenberg.py). Using the Heisenberg GTNO, we obtained satisfying result with very few parameters comparable to VUMPS.
 
